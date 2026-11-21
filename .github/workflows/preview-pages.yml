@@ -1,0 +1,60 @@
+name: Publiceer JM Betonservice preview
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - jm-gh-pages.zip
+      - .github/workflows/preview-pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Download bestanden
+        uses: actions/checkout@v4
+
+      - name: Pak de kant-en-klare website uit
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+
+          destination = Path("_site").resolve()
+          destination.mkdir()
+          with ZipFile("jm-gh-pages.zip") as archive:
+              for member in archive.infolist():
+                  target = (destination / member.filename).resolve()
+                  if target != destination and destination not in target.parents:
+                      raise ValueError(f"Onveilig pad in ZIP: {member.filename}")
+              archive.extractall(destination)
+          for required in ["index.html", ".nojekyll", "404.html"]:
+              if not (destination / required).is_file():
+                  raise RuntimeError(f"Websitebestand ontbreekt: {required}")
+          print("De complete website is uitgepakt en gecontroleerd.")
+          PY
+
+      - name: GitHub Pages configureren
+        uses: actions/configure-pages@v5
+
+      - name: Website klaarzetten
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Website publiceren
+        id: deployment
+        uses: actions/deploy-pages@v4
