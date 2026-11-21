@@ -4,7 +4,8 @@ on:
   push:
     branches: [main]
     paths:
-      - jm-gh-pages.zip
+      - JM_Betonservice_V83_preview_deel1.part
+      - JM_Betonservice_V83_preview_deel2.part
       - .github/workflows/preview-pages.yml
   workflow_dispatch:
 
@@ -33,9 +34,26 @@ jobs:
           from pathlib import Path
           from zipfile import ZipFile
 
+          parts = [
+              Path("JM_Betonservice_V83_preview_deel1.part"),
+              Path("JM_Betonservice_V83_preview_deel2.part"),
+          ]
+          for part in parts:
+              if not part.is_file() or part.stat().st_size == 0:
+                  raise RuntimeError(f"Previewdeel ontbreekt of is leeg: {part}")
+
+          combined = Path("jm-v83-reconstructed.zip")
+          with combined.open("wb") as output:
+              for part in parts:
+                  with part.open("rb") as source:
+                      while chunk := source.read(1024 * 1024):
+                          output.write(chunk)
+
           destination = Path("_site").resolve()
           destination.mkdir()
-          with ZipFile("jm-gh-pages.zip") as archive:
+          with ZipFile(combined) as archive:
+              if archive.testzip() is not None:
+                  raise RuntimeError("Het samengestelde ZIP-bestand bevat een corrupte entry")
               for member in archive.infolist():
                   target = (destination / member.filename).resolve()
                   if target != destination and destination not in target.parents:
@@ -44,7 +62,7 @@ jobs:
           for required in ["index.html", ".nojekyll", "404.html"]:
               if not (destination / required).is_file():
                   raise RuntimeError(f"Websitebestand ontbreekt: {required}")
-          print("De complete website is uitgepakt en gecontroleerd.")
+          print("V8.3 is samengesteld, gecontroleerd en uitgepakt.")
           PY
 
       - name: GitHub Pages configureren
