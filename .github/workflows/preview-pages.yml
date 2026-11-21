@@ -6,6 +6,7 @@ on:
     paths:
       - JM_Betonservice_V83_preview_deel1.part
       - JM_Betonservice_V83_preview_deel2.part
+      - scripts/patch-preview.py
       - .github/workflows/preview-pages.yml
   workflow_dispatch:
 
@@ -64,6 +65,9 @@ jobs:
                   raise RuntimeError(f"Websitebestand ontbreekt: {required}")
           print("V8.3 is samengesteld, gecontroleerd en uitgepakt.")
           PY
+
+      - name: Pas contact, WhatsApp en dienstennavigatie aan
+        run: python3 scripts/patch-preview.py _site
 
       - name: GitHub Pages configureren
         uses: actions/configure-pages@v5
