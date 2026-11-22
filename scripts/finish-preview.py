@@ -197,8 +197,7 @@ controller = r'''<script id="jm-final-contact-script">
     }
     var url="https://wa.me/"+waNumber+"?text="+encodeURIComponent(message);
     feedback("WhatsApp wordt geopend met uw ingevulde aanvraag. Controleer het bericht en druk daar zelf op Verzenden; uw aanvraag is nog niet automatisch verstuurd.",false);
-    var popup=window.open(url,"_blank","noopener,noreferrer");
-    if(!popup){window.location.assign(url);}
+    window.location.assign(url);
   },true);
 })();
 </script>'''
