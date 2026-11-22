@@ -55,3 +55,23 @@ for page in pages:
     page.write_text(html, encoding="utf-8")
 
 print(f"Contact, WhatsApp en mobiele Dienstennavigatie bijgewerkt op {len(pages)} pagina's.")
+
+
+# Tijdelijke HTML-structuurdiagnose voor gerichte definitieve afwerking.
+# Prints bevatten uitsluitend reeds publiek getoonde HTML.
+for rel in ("contact/index.html", "privacy/index.html"):
+    f = root / rel
+    if not f.exists():
+        print("JM_DIAG_MISSING", rel)
+        continue
+    source = f.read_text(encoding="utf-8")
+    print("JM_DIAG_BEGIN", rel, "length", len(source))
+    if rel.startswith("contact/"):
+        a = source.find("<form")
+        b = source.find("</form>", a)
+        print("JM_DIAG_FORM", source[a:min(b+7, a+18000)] if a>=0 and b>=0 else source[:12000])
+    else:
+        a = source.find("<main")
+        b = source.find("</main>", a)
+        print("JM_DIAG_PRIVACY", source[a:min(b+7,a+18000)] if a>=0 and b>=0 else source[:12000])
+    print("JM_DIAG_END", rel)
