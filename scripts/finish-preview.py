@@ -93,6 +93,41 @@ style = """<style id="jm-final-contact-style">
 .jm-contact-note{font-size:.92rem;line-height:1.55;margin:.8rem 0}
 .jm-contact-status{padding:1rem;margin-top:1rem;border:1px solid currentColor;border-radius:8px}
 .doc-text p{margin:0 0 .6rem;line-height:1.75}
+
+/* Refined warm card edges and responsive information presentation. */
+.cards .card,.svc-list .svc-row,.info-box,.pricebox,.form-card,.article__side{
+  border:1px solid rgba(83,66,54,.15);
+  border-radius:clamp(12px,1.25vw,18px);
+  box-shadow:0 4px 18px rgba(55,38,29,.045);
+  min-width:0;
+}
+.cards .card{transition:box-shadow .18s ease,transform .18s ease,border-color .18s ease;overflow:hidden}
+.cards .card:hover{transform:translateY(-2px);border-color:rgba(133,55,45,.28);box-shadow:0 10px 26px rgba(55,38,29,.09)}
+.card__body,.svc-row>* ,.form-card>*,.info-box>*{min-width:0}
+.card__body p,.svc-row p,.info-box p{overflow-wrap:break-word}
+.info-box,.pricebox{overflow:hidden}
+.info-box h2,.pricebox h2{max-width:100%;text-wrap:balance}
+.doc-section{padding:clamp(.8rem,2vw,1.15rem) 0;border-bottom:1px solid rgba(83,66,54,.13)}
+.doc-section:last-child{border-bottom:0}
+.doc-text a{overflow-wrap:anywhere}
+.jm-table-scroll{max-width:100%;overflow-x:auto;overscroll-behavior-x:contain;border:1px solid rgba(83,66,54,.16);border-radius:12px}
+.jm-table-scroll table{border-collapse:separate;border-spacing:0;width:100%;min-width:400px}
+.jm-table-scroll th,.jm-table-scroll td{padding:clamp(.65rem,1.4vw,1rem);vertical-align:top;text-align:left;border-bottom:1px solid rgba(83,66,54,.14)}
+.jm-table-scroll th{background:rgba(149,105,77,.075);font-weight:700}
+.jm-table-scroll tr:last-child td{border-bottom:0}
+.jm-upload-card{padding:clamp(1rem,2.2vw,1.4rem);border:1px dashed rgba(115,74,63,.45);background:#fbf9f5;border-radius:14px;margin:1.1rem 0}
+.jm-upload-card:focus-within{outline:2px solid #8c453e;outline-offset:2px}
+.jm-upload-card label{display:block;font-weight:700;margin-bottom:.45rem}
+.jm-upload-card input[type=file]{display:block;width:100%;max-width:100%;padding:.5rem 0;font:inherit}
+.jm-upload-card .hint{font-size:.88rem;line-height:1.55;margin:.25rem 0 .8rem;color:#61574e}
+.jm-upload-feedback{display:block;font-size:.9rem;line-height:1.5;overflow-wrap:anywhere;margin:.5rem 0}
+.jm-photo-previews{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,125px),1fr));gap:.7rem;margin-top:.8rem}
+.jm-photo-item{display:flex;flex-direction:column;gap:.35rem;min-width:0;padding:.4rem;background:#fff;border:1px solid rgba(90,70,55,.14);border-radius:10px}
+.jm-photo-item img{display:block;max-width:100%;width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:6px}
+.jm-photo-name{font-size:.78rem;line-height:1.3;overflow-wrap:anywhere;color:#4c4139}
+.jm-upload-error{color:#a12727;font-weight:600}
+@media(max-width:480px){.jm-upload-card{padding:.85rem}.jm-photo-previews{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(prefers-reduced-motion:reduce){.cards .card{transition:none}.cards .card:hover{transform:none}}
 </style>"""
 
 # The inline controller uses the existing fields and layout, with no third-party JS library.
@@ -120,6 +155,70 @@ controller = r'''<script id="jm-final-contact-script">
   if(originalBusy) originalBusy.hidden=true;
   if(button) button.textContent=endpoint ? "Verstuur mijn aanvraag" : "Ga verder via WhatsApp";
 
+
+  // In-memory photo selection. No personal files are stored or uploaded at this stage.
+  var photoInput=document.getElementById("jm-fotos");
+  var photoFeedback=document.getElementById("jm-file-feedback");
+  var photoPreviews=document.getElementById("jm-photo-previews");
+  var photoUrls=[];
+  var photoValid=true;
+  var MAX_FILES=5,MAX_TOTAL=10*1024*1024,MAX_ONE=8*1024*1024;
+  var allowedExt=/\.(jpe?g|png|webp|heic|heif)$/i;
+  function clearPreviews(){
+    photoUrls.forEach(function(url){URL.revokeObjectURL(url);});
+    photoUrls=[];
+    if(photoPreviews)photoPreviews.replaceChildren();
+  }
+  function selectedPhotos(){
+    return photoInput?Array.from(photoInput.files||[]):[];
+  }
+  function refreshPhotos(){
+    clearPreviews();
+    var photos=selectedPhotos();
+    var size=photos.reduce(function(sum,file){return sum+file.size;},0);
+    var issue="";
+    if(photos.length>MAX_FILES)issue="Selecteer maximaal 5 foto's.";
+    else if(photos.some(function(f){return f.size>MAX_ONE;}))issue="Een foto is groter dan 8 MB.";
+    else if(size>MAX_TOTAL)issue="De geselecteerde foto's zijn samen groter dan 10 MB.";
+    else if(photos.some(function(f){return !(f.type.startsWith("image/")||allowedExt.test(f.name));}))
+      issue="Selecteer uitsluitend afbeeldingen (JPG, PNG, WebP of HEIC).";
+    photoValid=!issue;
+    if(photoFeedback){
+      photoFeedback.textContent=issue||(photos.length?photos.length+" foto('s) geselecteerd ("+(size/(1024*1024)).toFixed(1)+" MB).":"Nog geen foto's geselecteerd.");
+      photoFeedback.classList.toggle("jm-upload-error",!!issue);
+    }
+    photos.slice(0,MAX_FILES).forEach(function(file){
+      if(!photoPreviews)return;
+      var item=document.createElement("div");
+      item.className="jm-photo-item";
+      var src=URL.createObjectURL(file);
+      photoUrls.push(src);
+      var img=document.createElement("img");
+      img.src=src;
+      img.alt="Voorbeeld: "+file.name;
+      img.loading="lazy";
+      img.onerror=function(){img.replaceWith(document.createTextNode("Afbeeldingsvoorbeeld niet beschikbaar"));};
+      var name=document.createElement("span");
+      name.className="jm-photo-name";
+      name.textContent=file.name;
+      item.append(img,name);
+      photoPreviews.appendChild(item);
+    });
+    return photoValid;
+  }
+  if(photoInput)photoInput.addEventListener("change",refreshPhotos);
+  // Preserve table semantics while allowing horizontal scrolling on narrow screens.
+  document.querySelectorAll("main table").forEach(function(table){
+    if(table.closest(".jm-table-scroll"))return;
+    var wrap=document.createElement("div");
+    wrap.className="jm-table-scroll";
+    wrap.tabIndex=0;
+    wrap.setAttribute("role","region");
+    wrap.setAttribute("aria-label","Horizontaal scrollbare tabel");
+    table.parentNode.insertBefore(wrap,table);
+    wrap.appendChild(table);
+  });
+
   function feedback(message,isError){
     if(!status) return;
     status.textContent=message;
@@ -136,6 +235,7 @@ controller = r'''<script id="jm-final-contact-script">
   }
   function validate(){
     var faults=[];
+    if(!refreshPhotos()) faults.push(["jm-fotos","Controleer uw foto's."]);
     if(!val("naam")) faults.push(["naam","Vul uw naam in."]);
     if(!val("plaats")) faults.push(["plaats","Vul de plaats van de klus in."]);
     if(!val("dienst")) faults.push(["dienst","Kies een dienst."]);
@@ -169,19 +269,35 @@ controller = r'''<script id="jm-final-contact-script">
     event.stopImmediatePropagation();
     enable();
     if(!validate())return;
+    var photos=selectedPhotos();
     var data=new FormData(form);
     var bot=String(data.get("bot-field")||"").trim();
     if(bot){feedback("Controleer uw gegevens en probeer het opnieuw.",true);return;}
     if(endpoint){
+      // FormSubmit attachments require a native multipart POST, not the AJAX route.
+      if(/^https:\/\/formsubmit\.co\//i.test(endpoint)){
+        var nativeEndpoint=endpoint.replace("formsubmit.co/ajax/","formsubmit.co/");
+        feedback("Uw aanvraag en eventuele foto's worden naar de formulierdienst verstuurd.",false);
+        form.action=nativeEndpoint;
+        form.method="POST";
+        form.enctype="multipart/form-data";
+        // Native submission includes the file input without serializing it in a URL.
+        HTMLFormElement.prototype.submit.call(form);
+        return;
+      }
       if(button)button.disabled=true;
-      feedback("Uw aanvraag wordt veilig verzonden…",false);
+      feedback("Uw aanvraag en eventuele foto's worden verzonden…",false);
       try{
         var response=await fetch(endpoint,{method:"POST",body:data,headers:{"Accept":"application/json"}});
         if(!response.ok)throw new Error("Formulierdienst reageert met status "+response.status);
-        feedback("Uw aanvraag is bij de formulierenservice aangeboden. Wij nemen contact met u op.",false);
+        var result=await response.json().catch(function(){return null;});
+        if(!result || !(result.success===true||result.success==="true"||result.accepted===true||result.ref))
+          throw new Error("Ontvanger heeft de aanvraag niet bevestigd.");
+        feedback("Uw aanvraag is door de formulierdienst geaccepteerd. Wij nemen contact met u op.",false);
         form.reset();
+        refreshPhotos();
       }catch(err){
-        feedback("Verzenden is niet gelukt. Uw gegevens staan nog in het formulier. Probeer het opnieuw of bel ons.",true);
+        feedback("Verzenden is niet gelukt. Uw gegevens staan nog in het formulier. Probeer opnieuw of bel ons.",true);
       }finally{if(button)button.disabled=false;}
       return;
     }
@@ -196,6 +312,17 @@ controller = r'''<script id="jm-final-contact-script">
       return;
     }
     var url="https://wa.me/"+waNumber+"?text="+encodeURIComponent(message);
+    if(photos.length){
+      feedback("Uw foto's zijn geselecteerd maar nog niet verzonden. WhatsApp kan deze websitebestanden niet automatisch bijvoegen. Voeg de foto's in WhatsApp zelf toe nadat u de tekst heeft verstuurd.",false);
+      var continueLink=document.createElement("a");
+      continueLink.className="btn btn--primary";
+      continueLink.href=url;
+      continueLink.target="_blank";
+      continueLink.rel="noopener noreferrer";
+      continueLink.textContent="Open WhatsApp en voeg foto's toe";
+      status.appendChild(document.createElement("p")).appendChild(continueLink);
+      return;
+    }
     feedback("WhatsApp wordt geopend met uw ingevulde aanvraag. Controleer het bericht en druk daar zelf op Verzenden; uw aanvraag is nog niet automatisch verstuurd.",false);
     window.location.assign(url);
   },true);
@@ -247,12 +374,18 @@ source=source.replace('data-netlify-honeypot="bot-field"','',1)
 source=source.replace('<fieldset disabled>','<fieldset>',1)
 source=source.replace(
     '<div class="upload" aria-disabled="true"><p class="upload__title">Foto van de huidige situatie <span class="opt">(optioneel)</span></p><p class="hint">Een foto maakt uw situatie makkelijker te beoordelen. Foto toevoegen is nog niet beschikbaar: eventuele foto\'s kunt u later met ons delen.</p><button class="btn btn--secondary" type="button" disabled>Foto toevoegen</button></div>',
-    '<p class="jm-contact-note">Wilt u foto’s meesturen? Die kunt u na het eerste contact via WhatsApp delen.</p>',
+    '''<div class="jm-upload-card" data-photo-upload>
+       <label for="jm-fotos">Foto's van de huidige situatie <span class="opt">(optioneel)</span></label>
+       <p class="hint" id="jm-upload-hint">Kies maximaal 5 foto's (JPG, PNG, WebP of HEIC), samen maximaal 10 MB. Bekijk uw selectie hieronder. Bij een aanvraag via WhatsApp moet u de foto's zelf nog toevoegen. Zodra een formulierontvanger is aangesloten, kunnen de foto's met het formulier worden meegestuurd.</p>
+       <input type="file" name="attachment" id="jm-fotos" accept="image/*,.heic,.heif" multiple aria-describedby="jm-upload-hint jm-file-feedback">
+       <output id="jm-file-feedback" class="jm-upload-feedback" aria-live="polite">Nog geen foto's geselecteerd.</output>
+       <div class="jm-photo-previews" id="jm-photo-previews" aria-label="Voorbeeld geselecteerde foto's"></div>
+    </div>''',
     1
 )
 source=source.replace(
     'We gebruiken uw gegevens uitsluitend om contact op te nemen over uw aanvraag. Lees onze',
-    'We gebruiken uw gegevens om uw aanvraag te behandelen. Zonder zakelijke e-mail opent de aanvraag in WhatsApp; u verzendt het bericht daar zelf. Lees onze ',
+    'We gebruiken uw gegevens om uw aanvraag te behandelen. Zonder ingeschakelde formulierontvanger opent de aanvraag in WhatsApp. Geselecteerde foto's worden daarbij niet automatisch meegestuurd; u voegt deze zelf toe. Lees onze ',
     1
 )
 source=source.replace('Online aanvragen is nog niet ingeschakeld','Aanvragen verlopen momenteel via WhatsApp')
