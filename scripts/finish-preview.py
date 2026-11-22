@@ -385,7 +385,7 @@ source=source.replace(
 )
 source=source.replace(
     'We gebruiken uw gegevens uitsluitend om contact op te nemen over uw aanvraag. Lees onze',
-    'We gebruiken uw gegevens om uw aanvraag te behandelen. Zonder ingeschakelde formulierontvanger opent de aanvraag in WhatsApp. Geselecteerde foto's worden daarbij niet automatisch meegestuurd; u voegt deze zelf toe. Lees onze ',
+    'We gebruiken uw gegevens om uw aanvraag te behandelen. Zonder ingeschakelde formulierontvanger opent de aanvraag in WhatsApp. Geselecteerde foto’s worden daarbij niet automatisch meegestuurd; u voegt deze zelf toe. Lees onze ',
     1
 )
 source=source.replace('Online aanvragen is nog niet ingeschakeld','Aanvragen verlopen momenteel via WhatsApp')
