@@ -62,6 +62,26 @@ if 'data-form-enabled="true"' not in contact:problems.append("contact: form not 
 if "<fieldset disabled>" in contact:problems.append("contact: fieldset still disabled")
 if 'id="jm-contact-handoff-status"' not in contact:problems.append("contact: status note missing")
 if 'data-submit>Ga verder via WhatsApp' not in contact:problems.append("contact: CTA missing")
+
+if 'id="jm-fotos"' not in contact or 'type="file"' not in contact:
+    problems.append("contact: photo selector missing")
+if 'id="jm-photo-previews"' not in contact:
+    problems.append("contact: photo previews missing")
+if 'maximaal 5 foto' not in contact.lower():
+    problems.append("contact: photo limits not displayed")
+if '.cards .card:hover' not in contact:
+    problems.append("style: refined card styling missing")
+# Parse the new inline controller syntax using Node available on the GitHub Actions runner.
+import subprocess
+import re
+scripts = re.findall(r'<script id="jm-final-contact-script">(.*?)</script>', contact, flags=re.S)
+if len(scripts) != 1:
+    problems.append("contact: exactly one final controller required")
+else:
+    check = subprocess.run(["node","--check"],input=scripts[0],text=True,capture_output=True)
+    if check.returncode:
+        problems.append("contact: controller syntax error: "+check.stderr[:250])
+
 if 'class="todo-note"' in privacy or "Nog in te vullen vóór publicatie" in privacy:
     problems.append("privacy: placeholder remains")
 for heading in ("Wie verantwoordelijk is","Welke gegevens we ontvangen","Waarom we die gebruiken",
@@ -76,30 +96,3 @@ if problems:
     for issue in problems[:50]:print(" -",issue)
     raise SystemExit(1)
 print("JM QA PASS: internal targets, contact markup, 11 privacy sections, business footer.")
-
-
-# Temporary layout diagnostics for targeted refinement.
-from collections import Counter
-import re
-for path_ in ("index.html","diensten/index.html","bedrijven/index.html","contact/index.html","projecten/index.html","werkwijze/index.html"):
-    p = root/path_
-    if not p.exists():continue
-    s=p.read_text(encoding="utf-8")
-    classes=[]
-    for tag, cl in re.findall(r'<(div|section|article|table|aside|blockquote|figure)\b[^>]*class="([^"]+)"',s):
-        classes.extend([z for z in cl.split() if any(k in z.lower() for k in ("card","grid","table","frame","panel","tile","box","stat","fact","proof","step","benefit","compare","feature","service","price"))])
-    print("JM_LAYOUT",path_,Counter(classes).most_common(25))
-    for m in list(re.finditer(r'<table\b',s))[:2]:
-        print("JM_TABLE_SNIP",path_,s[m.start():m.start()+2400])
-    for m in list(re.finditer(r'<div[^>]+(?:class="[^"]*(?:card|grid|panel|box|frame)[^"]*")',s))[:2]:
-        print("JM_CARD_SNIP",path_,s[m.start():m.start()+850])
-css_files=list(root.rglob("*.css"))
-print("JM_CSS_FILES",[(f.relative_to(root).as_posix(),f.stat().st_size) for f in css_files[:30]])
-for css in css_files[:12]:
-    t=css.read_text(encoding="utf-8")
-    selectors=[]
-    for match in re.finditer(r'([^{}]+)\{',t):
-        sel=match.group(1).strip()
-        if any(x in sel.lower() for x in ("card","table","grid","panel","box","frame","service","stat","step")):
-            selectors.append(sel[-170:])
-    print("JM_CSS_SELECTORS",css.name,selectors[:100])
