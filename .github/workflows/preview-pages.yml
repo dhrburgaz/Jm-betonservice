@@ -8,6 +8,7 @@ on:
       - JM_Betonservice_V83_preview_deel2.part
       - scripts/patch-preview.py
       - scripts/finish-preview.py
+      - scripts/expand-about.py
       - scripts/smoke-preview.py
       - .github/workflows/preview-pages.yml
   workflow_dispatch:
@@ -75,6 +76,9 @@ jobs:
         env:
           JM_FORM_ENDPOINT: ${{ vars.JM_FORM_ENDPOINT }}
         run: python3 scripts/finish-preview.py _site
+      - name: Breid Over ons uit in bestaande huisstijl
+        run: python3 scripts/expand-about.py _site
+
       - name: Controleer alle preview-routes en contactonderdelen
         run: python3 scripts/smoke-preview.py _site
 
