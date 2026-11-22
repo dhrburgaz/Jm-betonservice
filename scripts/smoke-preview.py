@@ -76,3 +76,30 @@ if problems:
     for issue in problems[:50]:print(" -",issue)
     raise SystemExit(1)
 print("JM QA PASS: internal targets, contact markup, 11 privacy sections, business footer.")
+
+
+# Temporary layout diagnostics for targeted refinement.
+from collections import Counter
+import re
+for path_ in ("index.html","diensten/index.html","bedrijven/index.html","contact/index.html","projecten/index.html","werkwijze/index.html"):
+    p = root/path_
+    if not p.exists():continue
+    s=p.read_text(encoding="utf-8")
+    classes=[]
+    for tag, cl in re.findall(r'<(div|section|article|table|aside|blockquote|figure)\b[^>]*class="([^"]+)"',s):
+        classes.extend([z for z in cl.split() if any(k in z.lower() for k in ("card","grid","table","frame","panel","tile","box","stat","fact","proof","step","benefit","compare","feature","service","price"))])
+    print("JM_LAYOUT",path_,Counter(classes).most_common(25))
+    for m in list(re.finditer(r'<table\b',s))[:2]:
+        print("JM_TABLE_SNIP",path_,s[m.start():m.start()+2400])
+    for m in list(re.finditer(r'<div[^>]+(?:class="[^"]*(?:card|grid|panel|box|frame)[^"]*")',s))[:2]:
+        print("JM_CARD_SNIP",path_,s[m.start():m.start()+850])
+css_files=list(root.rglob("*.css"))
+print("JM_CSS_FILES",[(f.relative_to(root).as_posix(),f.stat().st_size) for f in css_files[:30]])
+for css in css_files[:12]:
+    t=css.read_text(encoding="utf-8")
+    selectors=[]
+    for match in re.finditer(r'([^{}]+)\{',t):
+        sel=match.group(1).strip()
+        if any(x in sel.lower() for x in ("card","table","grid","panel","box","frame","service","stat","step")):
+            selectors.append(sel[-170:])
+    print("JM_CSS_SELECTORS",css.name,selectors[:100])
