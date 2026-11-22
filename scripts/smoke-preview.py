@@ -90,6 +90,11 @@ for heading in ("Wie verantwoordelijk is","Welke gegevens we ontvangen","Waarom 
                 "Cookies en statistieken","Wijzigingen"):
     if f"<h2>{heading}</h2>" not in privacy:problems.append("privacy: missing "+heading)
 if len(pages)<20:problems.append(f"unexpected page count {len(pages)}")
+# One-time inspect current About Us page for precise editorial changes.
+about_source=(root/"over-ons/index.html").read_text(encoding="utf-8")
+about_main_start=about_source.find("<main")
+about_main_end=about_source.find("</main>",about_main_start)
+print("JM_ABOUT_MARKUP",about_source[about_main_start:about_main_end+7][:16000])
 print(f"JM QA: {len(pages)} HTML routes, {links} anchor links, {assets} asset references checked")
 if problems:
     print("JM QA FAILED:")
