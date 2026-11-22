@@ -160,6 +160,7 @@ controller = r'''<script id="jm-final-contact-script">
   var photoInput=document.getElementById("jm-fotos");
   var photoFeedback=document.getElementById("jm-file-feedback");
   var photoPreviews=document.getElementById("jm-photo-previews");
+  var photoShareButton=document.getElementById("jm-share-photos");
   var photoUrls=[];
   var photoValid=true;
   var MAX_FILES=5,MAX_TOTAL=10*1024*1024,MAX_ONE=8*1024*1024;
@@ -183,6 +184,10 @@ controller = r'''<script id="jm-final-contact-script">
     else if(photos.some(function(f){return !(f.type.startsWith("image/")||allowedExt.test(f.name));}))
       issue="Selecteer uitsluitend afbeeldingen (JPG, PNG, WebP of HEIC).";
     photoValid=!issue;
+    if(photoShareButton){
+      var shareable=!!(photoValid && photos.length && typeof navigator.share==="function" && typeof navigator.canShare==="function" && navigator.canShare({files:photos}));
+      photoShareButton.hidden=!shareable;
+    }
     if(photoFeedback){
       photoFeedback.textContent=issue||(photos.length?photos.length+" foto('s) geselecteerd ("+(size/(1024*1024)).toFixed(1)+" MB).":"Nog geen foto's geselecteerd.");
       photoFeedback.classList.toggle("jm-upload-error",!!issue);
@@ -207,6 +212,23 @@ controller = r'''<script id="jm-final-contact-script">
     return photoValid;
   }
   if(photoInput)photoInput.addEventListener("change",refreshPhotos);
+  if(photoShareButton)photoShareButton.addEventListener("click",function(){
+    var photos=selectedPhotos();
+    if(!refreshPhotos()||!photos.length||!navigator.canShare||!navigator.canShare({files:photos}))return;
+    navigator.share({
+      files:photos,
+      title:"Foto's voor JM Betonservice",
+      text:"Foto's bij mijn offerteaanvraag. Kies WhatsApp en selecteer JM Betonservice als ontvanger."
+    }).then(function(){
+      feedback("Het deelmenu is afgerond. Controleer in WhatsApp of uw foto's daadwerkelijk naar JM Betonservice zijn verzonden; uw ingevulde offertegegevens kunt u apart via de knop hieronder verzenden.",false);
+    }).catch(function(e){
+      if(e && e.name==="AbortError"){
+        feedback("Foto's delen is geannuleerd. Uw geselecteerde foto's staan nog in dit formulier.",false);
+      }else{
+        feedback("Foto's delen wordt op dit apparaat niet ondersteund. Voeg ze rechtstreeks in WhatsApp toe.",true);
+      }
+    });
+  });
   // Preserve table semantics while allowing horizontal scrolling on narrow screens.
   document.querySelectorAll("main table").forEach(function(table){
     if(table.closest(".jm-table-scroll"))return;
@@ -376,9 +398,10 @@ source=source.replace(
     '<div class="upload" aria-disabled="true"><p class="upload__title">Foto van de huidige situatie <span class="opt">(optioneel)</span></p><p class="hint">Een foto maakt uw situatie makkelijker te beoordelen. Foto toevoegen is nog niet beschikbaar: eventuele foto\'s kunt u later met ons delen.</p><button class="btn btn--secondary" type="button" disabled>Foto toevoegen</button></div>',
     '''<div class="jm-upload-card" data-photo-upload>
        <label for="jm-fotos">Foto's van de huidige situatie <span class="opt">(optioneel)</span></label>
-       <p class="hint" id="jm-upload-hint">Kies maximaal 5 foto's (JPG, PNG, WebP of HEIC), samen maximaal 10 MB. Bekijk uw selectie hieronder. Bij een aanvraag via WhatsApp moet u de foto's zelf nog toevoegen. Zodra een formulierontvanger is aangesloten, kunnen de foto's met het formulier worden meegestuurd.</p>
+       <p class="hint" id="jm-upload-hint">Kies maximaal 5 foto's (JPG, PNG, WebP of HEIC), samen maximaal 10 MB. Bekijk uw selectie hieronder. Op geschikte telefoons kunt u de foto's via het deelmenu naar WhatsApp sturen; anders voegt u ze daar zelf toe. Zodra een formulierontvanger is aangesloten, kunnen de foto's met het formulier worden meegestuurd.</p>
        <input type="file" name="attachment" id="jm-fotos" accept="image/*,.heic,.heif" multiple aria-describedby="jm-upload-hint jm-file-feedback">
        <output id="jm-file-feedback" class="jm-upload-feedback" aria-live="polite">Nog geen foto's geselecteerd.</output>
+       <button type="button" id="jm-share-photos" class="btn btn--secondary" hidden>Deel geselecteerde foto's via uw telefoon</button>
        <div class="jm-photo-previews" id="jm-photo-previews" aria-label="Voorbeeld geselecteerde foto's"></div>
     </div>''',
     1
