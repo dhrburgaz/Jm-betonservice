@@ -6,7 +6,8 @@ import assert from 'node:assert/strict';
 const page=fs.readFileSync(process.argv[2] ?? '_site/contact/index.html','utf8');
 const match=page.match(/<script id="jm-final-contact-script">([\s\S]*?)<\/script>/);
 assert.ok(match,'Contact controller is missing');
-const code=match[1];
+// Exercise the WhatsApp fallback even if a form endpoint is configured later.
+const code=match[1].replace(/var endpoint=.*?;/, 'var endpoint="";');
 class Element {
   constructor(value=''){this.value=value;this.hidden=true;this.textContent='';this.children=[];this.files=[];this.attrs={};this.style={};this.classList={toggle(){}};}
   addEventListener(name,callback){this[`on_${name}`]=callback;}
