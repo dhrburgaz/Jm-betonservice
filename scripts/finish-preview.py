@@ -186,6 +186,7 @@ controller = r'''<script id="jm-final-contact-script">
     var size=photos.reduce(function(sum,file){return sum+file.size;},0);
     var issue="";
     if(photos.length>MAX_FILES)issue="Selecteer maximaal 5 foto's.";
+    else if(photos.some(function(f){return f.size===0;}))issue="Een geselecteerd bestand is leeg. Kies een andere foto.";
     else if(photos.some(function(f){return f.size>MAX_ONE;}))issue="Een foto is groter dan 8 MB.";
     else if(size>MAX_TOTAL)issue="De geselecteerde foto's zijn samen groter dan 10 MB.";
     else if(photos.some(function(f){return !(allowedExt.test(f.name) && (!f.type || allowedTypes[String(f.type).toLowerCase()]));}))
