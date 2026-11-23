@@ -137,6 +137,8 @@ controller = r'''<script id="jm-final-contact-script">
   "use strict";
   var form=document.querySelector("form.lead-form");
   if(!form) return;
+  // Custom validation must run even when fields have native required/type rules.
+  form.noValidate=true;
   var endpoint=__JM_FORM_ENDPOINT__;
   var waNumber="31648381164";
   var mainFields=form.querySelector("fieldset");
@@ -165,6 +167,11 @@ controller = r'''<script id="jm-final-contact-script">
   var photoValid=true;
   var MAX_FILES=5,MAX_TOTAL=10*1024*1024,MAX_ONE=8*1024*1024;
   var allowedExt=/\.(jpe?g|png|webp|heic|heif)$/i;
+  var allowedTypes={"image/jpeg":true,"image/png":true,"image/webp":true,"image/heic":true,"image/heif":true};
+  function canShareFiles(files){
+    if(typeof navigator.share!=="function" || typeof navigator.canShare!=="function")return false;
+    try{return !!navigator.canShare({files:files});}catch(e){return false;}
+  }
   function clearPreviews(){
     photoUrls.forEach(function(url){URL.revokeObjectURL(url);});
     photoUrls=[];
@@ -181,11 +188,11 @@ controller = r'''<script id="jm-final-contact-script">
     if(photos.length>MAX_FILES)issue="Selecteer maximaal 5 foto's.";
     else if(photos.some(function(f){return f.size>MAX_ONE;}))issue="Een foto is groter dan 8 MB.";
     else if(size>MAX_TOTAL)issue="De geselecteerde foto's zijn samen groter dan 10 MB.";
-    else if(photos.some(function(f){return !(f.type.startsWith("image/")||allowedExt.test(f.name));}))
+    else if(photos.some(function(f){return !(allowedExt.test(f.name) && (!f.type || allowedTypes[String(f.type).toLowerCase()]));}))
       issue="Selecteer uitsluitend afbeeldingen (JPG, PNG, WebP of HEIC).";
     photoValid=!issue;
     if(photoShareButton){
-      var shareable=!!(photoValid && photos.length && typeof navigator.share==="function" && typeof navigator.canShare==="function" && navigator.canShare({files:photos}));
+      var shareable=!!(photoValid && photos.length && canShareFiles(photos));
       photoShareButton.hidden=!shareable;
     }
     if(photoFeedback){
@@ -214,7 +221,7 @@ controller = r'''<script id="jm-final-contact-script">
   if(photoInput)photoInput.addEventListener("change",refreshPhotos);
   if(photoShareButton)photoShareButton.addEventListener("click",function(){
     var photos=selectedPhotos();
-    if(!refreshPhotos()||!photos.length||!navigator.canShare||!navigator.canShare({files:photos}))return;
+    if(!refreshPhotos()||!photos.length||!canShareFiles(photos))return;
     navigator.share({
       files:photos,
       title:"Foto's voor JM Betonservice",
@@ -398,8 +405,8 @@ source=source.replace(
     '<div class="upload" aria-disabled="true"><p class="upload__title">Foto van de huidige situatie <span class="opt">(optioneel)</span></p><p class="hint">Een foto maakt uw situatie makkelijker te beoordelen. Foto toevoegen is nog niet beschikbaar: eventuele foto\'s kunt u later met ons delen.</p><button class="btn btn--secondary" type="button" disabled>Foto toevoegen</button></div>',
     '''<div class="jm-upload-card" data-photo-upload>
        <label for="jm-fotos">Foto's van de huidige situatie <span class="opt">(optioneel)</span></label>
-       <p class="hint" id="jm-upload-hint">Kies maximaal 5 foto's (JPG, PNG, WebP of HEIC), samen maximaal 10 MB. Bekijk uw selectie hieronder. Op geschikte telefoons kunt u de foto's via het deelmenu naar WhatsApp sturen; anders voegt u ze daar zelf toe. Zodra een formulierontvanger is aangesloten, kunnen de foto's met het formulier worden meegestuurd.</p>
-       <input type="file" name="attachment" id="jm-fotos" accept="image/*,.heic,.heif" multiple aria-describedby="jm-upload-hint jm-file-feedback">
+       <p class="hint" id="jm-upload-hint">Kies maximaal 5 foto's (JPG, PNG, WebP of HEIC/HEIF), maximaal 8 MB per foto en samen maximaal 10 MB. Bekijk uw selectie hieronder. Op geschikte telefoons kunt u de foto's via het deelmenu naar WhatsApp sturen; anders voegt u ze daar zelf toe. Zodra een formulierontvanger is aangesloten, kunnen de foto's met het formulier worden meegestuurd.</p>
+       <input type="file" name="attachment" id="jm-fotos" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif" multiple aria-describedby="jm-upload-hint jm-file-feedback">
        <output id="jm-file-feedback" class="jm-upload-feedback" aria-live="polite">Nog geen foto's geselecteerd.</output>
        <button type="button" id="jm-share-photos" class="btn btn--secondary" hidden>Deel geselecteerde foto's via uw telefoon</button>
        <div class="jm-photo-previews" id="jm-photo-previews" aria-label="Voorbeeld geselecteerde foto's"></div>
