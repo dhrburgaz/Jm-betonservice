@@ -199,6 +199,8 @@ controller = r'''<script id="jm-final-contact-script">
       photoFeedback.textContent=issue||(photos.length?photos.length+" foto('s) geselecteerd ("+(size/(1024*1024)).toFixed(1)+" MB).":"Nog geen foto's geselecteerd.");
       photoFeedback.classList.toggle("jm-upload-error",!!issue);
     }
+    // Never create object URLs or previews for a rejected selection.
+    if(!photoValid)return false;
     photos.slice(0,MAX_FILES).forEach(function(file){
       if(!photoPreviews)return;
       var item=document.createElement("div");
