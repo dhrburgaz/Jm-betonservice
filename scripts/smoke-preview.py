@@ -16,8 +16,19 @@ class PageParser(HTMLParser):
     def __init__(self):
         super().__init__(convert_charrefs=True)
         self.items=[]
+        self.ids=[]
+        self.h1_count=0
+        self.title_count=0
+        self.images_without_alt=0
+        self.page_anchors=[]
     def handle_starttag(self,tag,attrs):
         data=dict(attrs)
+        if data.get("id"): self.ids.append(data["id"])
+        if tag=="h1": self.h1_count+=1
+        if tag=="title": self.title_count+=1
+        if tag=="img" and "alt" not in data: self.images_without_alt+=1
+        if tag=="a" and data.get("href","").startswith("#") and data.get("href")!="#":
+            self.page_anchors.append(unquote(data["href"][1:]))
         if tag=="a" and data.get("href") is not None:
             self.items.append(("link",data["href"]))
         if tag in {"script","img","source","link"}:
@@ -31,6 +42,12 @@ for page in pages:
     source=page.read_text(encoding="utf-8")
     parser=PageParser()
     parser.feed(source)
+    if parser.h1_count!=1:problems.append(f"{rel}: expected one H1, found {parser.h1_count}")
+    if parser.title_count!=1:problems.append(f"{rel}: expected one title, found {parser.title_count}")
+    if len(parser.ids)!=len(set(parser.ids)):problems.append(f"{rel}: duplicate HTML IDs")
+    if parser.images_without_alt:problems.append(f"{rel}: {parser.images_without_alt} images missing alt")
+    for anchor in parser.page_anchors:
+        if anchor not in parser.ids:problems.append(f"{rel}: broken same-page anchor #{anchor}")
     if 'id="jm-final-contact-style"' not in source or "KvK 67385524" not in source:
         problems.append(f"{rel}: legal footer/style missing")
     for typ,href in parser.items:
@@ -58,6 +75,11 @@ for page in pages:
 contact=(root/"contact/index.html").read_text(encoding="utf-8")
 privacy=(root/"privacy/index.html").read_text(encoding="utf-8")
 if 'id="jm-final-contact-script"' not in contact:problems.append("contact: handoff script missing")
+if "form.noValidate=true;" not in contact:problems.append("contact: custom validation not activated")
+if "allowedTypes=" not in contact or "canShareFiles(" not in contact:
+    problems.append("contact: strict photo validation and safe sharing missing")
+if 'accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"' not in contact:
+    problems.append("contact: file picker must restrict supported image formats")
 if 'data-form-enabled="true"' not in contact:problems.append("contact: form not enabled")
 if "<fieldset disabled>" in contact:problems.append("contact: fieldset still disabled")
 if 'id="jm-contact-handoff-status"' not in contact:problems.append("contact: status note missing")
