@@ -43,7 +43,7 @@ async function scenario(values={},photos=[],canShare=()=>false){
   assert.equal(fieldset.disabled,false,'form must be enabled');
   assert.ok(form.on_submit,'submit listener must exist');
   await form.on_submit({preventDefault(){},stopImmediatePropagation(){}});
-  return {locations,status,summary,errors,uploadFeedback,shareButton};
+  return {locations,status,summary,errors,uploadFeedback,shareButton,photoPreviews};
 }
 const valid={naam:'Test Klant',plaats:'Dordrecht',dienst:'Gietvloer',omschrijving:'Vloer behandelen',telefoon:'0612345678'};
 let r=await scenario();
@@ -58,6 +58,11 @@ assert.equal(r.locations.length,0,'malformed email must be rejected');
 r=await scenario(valid,[{name:'evil.jpg',type:'image/svg+xml',size:1000}]);
 assert.match(r.uploadFeedback.textContent,/uitsluitend afbeeldingen/,'disguised SVG must be rejected');
 assert.equal(r.locations.length,0,'rejected SVG cannot proceed');
+assert.equal(r.photoPreviews.children.length,0,'rejected SVG must not be previewed');
+r=await scenario(valid,[{name:'leeg.jpg',type:'image/jpeg',size:0}]);
+assert.match(r.uploadFeedback.textContent,/bestand is leeg/,'empty images must be rejected');
+assert.equal(r.photoPreviews.children.length,0,'empty image must not create preview');
+assert.equal(r.locations.length,0,'empty image must block submission');
 r=await scenario(valid,[{name:'project.jpg',type:'image/jpeg',size:1000}],()=>{throw new Error('Share API unsupported')});
 assert.ok(r.status.textContent.includes('nog niet verzonden'),'photo should not be claimed as sent');
 assert.equal(r.shareButton.hidden,true,'unsupported sharing must be hidden');
