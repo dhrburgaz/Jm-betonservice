@@ -1,0 +1,65 @@
+name: Controleer JM Betonservice zonder live publicatie
+
+on:
+  pull_request:
+    paths:
+      - "JM_Betonservice_V83_preview_deel1.part"
+      - "JM_Betonservice_V83_preview_deel2.part"
+      - "scripts/**"
+      - ".github/workflows/**"
+
+permissions:
+  contents: read
+
+jobs:
+  qa:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Reconstruct website export veilig
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+          parts = [Path("JM_Betonservice_V83_preview_deel1.part"), Path("JM_Betonservice_V83_preview_deel2.part")]
+          for part in parts:
+              if not part.is_file() or not part.stat().st_size:
+                  raise RuntimeError("Ontbrekende preview: " + str(part))
+          bundle = Path("jm-v83-reconstructed.zip")
+          with bundle.open("wb") as out:
+              for part in parts:
+                  with part.open("rb") as source:
+                      while chunk := source.read(1024 * 1024):
+                          out.write(chunk)
+          destination = Path("_site").resolve()
+          destination.mkdir(exist_ok=True)
+          with ZipFile(bundle) as archive:
+              if archive.testzip() is not None:
+                  raise RuntimeError("Corrupt ZIP bestand")
+              for member in archive.infolist():
+                  target = (destination / member.filename).resolve()
+                  if target != destination and destination not in target.parents:
+                      raise ValueError("Onveilig ZIP-pad: " + member.filename)
+              archive.extractall(destination)
+          for required in ("index.html", ".nojekyll", "404.html"):
+              if not (destination / required).is_file():
+                  raise RuntimeError("Ontbrekend bestand: " + required)
+          PY
+
+      - name: Contact, WhatsApp en navigatie patches
+        run: python3 scripts/patch-preview.py _site
+
+      - name: Privacy, foto-upload en formulier voorbereiden
+        env:
+          JM_FORM_ENDPOINT: ""
+        run: python3 scripts/finish-preview.py _site
+
+      - name: Over ons veilig aanvullen
+        run: python3 scripts/expand-about.py _site
+
+      - name: Controleer alle paginas, links, foto- en privacymarkup
+        run: python3 scripts/smoke-preview.py _site
+
+      - name: Controleer gedrag van WhatsApp-formulier en foto-validatie
+        run: node scripts/test-form-controller.mjs _site/contact/index.html
