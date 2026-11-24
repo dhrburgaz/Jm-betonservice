@@ -19,13 +19,14 @@ class Element {
   appendChild(node){this.children.push(node);return node;}
   replaceWith(){}
 }
-async function scenario(values={},photos=[],canShare=()=>false){
+async function scenario(values={},photos=[],canShare=()=>false,send){
   const fields=Object.fromEntries(Object.entries(values).map(([k,v])=>[k,new Element(v)]));
   const fileInput=new Element();fileInput.files=photos;fields['jm-fotos']=fileInput;
   const button=new Element();const status=new Element();const summary=new Element();const errors=new Element();
   const uploadFeedback=new Element();const photoPreviews=new Element();const shareButton=new Element();
   const fieldset=new Element();fieldset.disabled=true;
-  const form={noValidate:false,elements:{namedItem:n=>fields[n]??null},
+  let resets=0;
+  const form={reset(){resets++;fileInput.files=[];},noValidate:false,elements:{namedItem:n=>fields[n]??null},
     querySelector(selector){return {'fieldset':fieldset,'[data-submit]':button,'[data-error-summary]':summary,'[data-error-list]':errors,'[data-fail]':new Element(),'[data-busy]':new Element()}[selector]??null;},
     querySelectorAll(){return []},addEventListener(n,cb){this[`on_${n}`]=cb;}};
   const ids={'jm-fotos':fileInput,'jm-file-feedback':uploadFeedback,'jm-photo-previews':photoPreviews,'jm-share-photos':shareButton,'jm-contact-handoff-status':status};
@@ -35,15 +36,27 @@ async function scenario(values={},photos=[],canShare=()=>false){
     window:{addEventListener(){},location:{assign:u=>locations.push(u)}},
     navigator:{share:async()=>{},canShare},
     URL:{createObjectURL:()=>`blob:fake`,revokeObjectURL(){}},
-    FormData:class {get(){return '';}},
+    FormData:class {
+      constructor(){this.data=new Map(Object.entries({...values,'cf-turnstile-response':'test-token'}));}
+      get(name){return this.data.get(name);}
+      set(name,value){this.data.set(name,value);}
+    },
+    fetch:send,AbortSignal,crypto,
+
     RadioNodeList:class{},
   };
-  vm.runInNewContext(code,ctx,{timeout:1000});
+  const script=send ? code.replace('var endpoint="";','var endpoint="https://receiver.example/offerte";') : code;
+  vm.runInNewContext(script,ctx,{timeout:1000});
   assert.equal(form.noValidate,true,'native validation must not suppress custom errors');
   assert.equal(fieldset.disabled,false,'form must be enabled');
   assert.ok(form.on_submit,'submit listener must exist');
-  await form.on_submit({preventDefault(){},stopImmediatePropagation(){}});
-  return {locations,status,summary,errors,uploadFeedback,shareButton,photoPreviews};
+  const submit=()=>form.on_submit({preventDefault(){},stopImmediatePropagation(){}});
+  let pending;
+  if(send) pending=submit();
+  else await submit();
+  return {locations,status,summary,errors,uploadFeedback,shareButton,photoPreviews,
+    pending,submit,fileInput,fields,resets:()=>resets};
+
 }
 const valid={naam:'Test Klant',plaats:'Dordrecht',dienst:'Gietvloer',omschrijving:'Vloer behandelen',telefoon:'0612345678'};
 let r=await scenario();
@@ -71,3 +84,35 @@ assert.match(r.uploadFeedback.textContent,/maximaal 5/);
 r=await scenario(valid,[{name:'groot.jpg',type:'image/jpeg',size:9*1024*1024}]);
 assert.match(r.uploadFeedback.textContent,/groter dan 8 MB/);
 console.log('JM controller behavior PASS: blank form, valid WhatsApp, email, SVG, share errors, photo count and size.');
+
+const requests=[];
+let complete;
+const photo={name:'project.png',type:'image/png',size:1000};
+r=await scenario(valid,[photo],()=>false,async (url,options)=>{
+  assert.equal(url,'https://receiver.example/offerte');
+  assert.equal(options.method,'POST');
+  assert.equal(options.body.get('naam'),valid.naam);
+  requests.push(options.body.get('submission_id'));
+  return new Promise(resolve=>{complete=resolve;});
+});
+await r.submit();
+assert.equal(requests.length,1,'a pending submission blocks a second submit');
+for(const failure of [
+  () => Response.json({message:'Probeer opnieuw.'},{status:503}),
+  () => Response.json({success:true}),
+  () => Promise.reject(new DOMException('Timeout','TimeoutError')),
+  () => Promise.reject(new TypeError('Failed to fetch')),
+]){
+  complete(failure());
+  await r.pending;
+  assert.equal(r.resets(),0);
+  assert.equal(r.fields.naam.value,valid.naam);
+  assert.deepEqual(r.fileInput.files,[photo]);
+  r.pending=r.submit();
+}
+assert.ok(requests.every(id=>id===requests[0]),'unchanged retries reuse the submission ID');
+complete(Response.json({accepted:true,reference:requests[0]},{status:202}));
+await r.pending;
+assert.equal(r.resets(),1);
+assert.match(r.status.textContent,/aangenomen voor verzending/);
+console.log('JM HTTPS behavior PASS: busy guard, HTTP error, false success, timeout, network loss, retry reference, field retention and acknowledgement.');

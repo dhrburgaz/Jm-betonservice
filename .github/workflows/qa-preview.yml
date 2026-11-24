@@ -6,6 +6,7 @@ on:
       - "JM_Betonservice_V83_preview_deel1.part"
       - "JM_Betonservice_V83_preview_deel2.part"
       - "scripts/**"
+      - "receiver/**"
       - ".github/workflows/**"
 
 permissions:
@@ -50,6 +51,9 @@ jobs:
       - name: Contact, WhatsApp en navigatie patches
         run: python3 scripts/patch-preview.py _site
 
+      - name: Bewaar de nog te configureren testbuild
+        run: cp -a _site /tmp/jm-configured
+
       - name: Privacy, foto-upload en formulier voorbereiden
         env:
           JM_FORM_ENDPOINT: ""
@@ -63,3 +67,24 @@ jobs:
 
       - name: Controleer gedrag van WhatsApp-formulier en foto-validatie
         run: node scripts/test-form-controller.mjs _site/contact/index.html
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Test de offerteontvanger
+        run: node --test receiver/index.test.mjs
+
+      - name: Controleer de build met offerteontvanger
+        env:
+          JM_FORM_ENDPOINT: https://receiver.example/offerte
+          JM_TURNSTILE_SITE_KEY: 1x00000000000000000000AA
+        run: |
+          site=/tmp/jm-configured
+          python3 scripts/finish-preview.py "$site"
+          python3 scripts/expand-about.py "$site"
+          python3 scripts/migrate-domain.py "$site"
+          python3 scripts/editorial-seo.py "$site"
+          python3 scripts/premium-copy.py "$site"
+          python3 scripts/smoke-preview.py "$site" /
+          node scripts/test-form-controller.mjs "$site/contact/index.html"

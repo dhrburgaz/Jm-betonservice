@@ -8,6 +8,10 @@ for rel,pairs in edits.items():
     s=p.read_text(encoding="utf-8")
     for old,new in pairs.items():
         count=s.count(old)
+        if (not count and rel == "contact/index.html"
+                and old.startswith("Zonder ingeschakelde formulierontvanger")
+                and 'class="cf-turnstile"' in s):
+            continue
         if not count:
             raise RuntimeError(f"Copy target missing: {rel}: {old[:70]}")
         s=s.replace(old,new)

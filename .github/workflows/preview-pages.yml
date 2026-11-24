@@ -78,6 +78,7 @@ jobs:
       - name: Rond privacy, bedrijfsinformatie en contact af
         env:
           JM_FORM_ENDPOINT: ${{ vars.JM_FORM_ENDPOINT }}
+          JM_TURNSTILE_SITE_KEY: ${{ vars.JM_TURNSTILE_SITE_KEY }}
         run: python3 scripts/finish-preview.py _site
       - name: Breid Over ons uit in bestaande huisstijl
         run: python3 scripts/expand-about.py _site

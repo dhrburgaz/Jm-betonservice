@@ -83,7 +83,7 @@ if 'accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif"' 
 if 'data-form-enabled="true"' not in contact:problems.append("contact: form not enabled")
 if "<fieldset disabled>" in contact:problems.append("contact: fieldset still disabled")
 if 'id="jm-contact-handoff-status"' not in contact:problems.append("contact: status note missing")
-if 'data-submit>Ga verder via WhatsApp' not in contact:problems.append("contact: CTA missing")
+if not any(label in contact for label in ('data-submit>Ga verder via WhatsApp', 'data-submit>Verstuur mijn aanvraag')):problems.append("contact: CTA missing")
 
 if 'id="jm-fotos"' not in contact or 'type="file"' not in contact:
     problems.append("contact: photo selector missing")

@@ -1,0 +1,20 @@
+# Offerteontvanger activeren
+
+GitHub Pages blijft de website hosten. Het bestaande formulier verstuurt bij activering multipart naar de Worker. De Worker accepteert uitsluitend dezelfde publieke oorsprong, controleert Turnstile en de toegestane velden, en gebruikt Resend voor verzending naar `info@jmbetonservice.nl`. Het STRATO-MX-record blijft staan. Een apart afzendersubdomein voorkomt wijzigingen aan de bestaande inkomende mail.
+
+Een gehoste formulierdienst kan de configuratie beperken. Formspree koppelt uploads aan betaalde plannen. De bestaande FormSubmit-route gebruikte voor bijlagen een navigerende POST, waardoor de site bevestiging en herstel niet kon bewaken. Worker, Turnstile en Resend bieden kosteloze instapplannen met limieten. Herbevestig quotum, kosten en voorwaarden bij activering. Zie [Formspree uploads](https://help.formspree.io/hc/en-us/articles/115008380348-File-uploads), [Resend-prijzen](https://resend.com/pricing) en [Cloudflare Workers-limieten](https://developers.cloudflare.com/workers/platform/limits/).
+
+## Inrichten
+
+1. Bevestig toegang tot de zakelijke inbox, GitHub Actions-variabelen en het STRATO DNS-beheer. Controleer de Cloudflare- en Resend-accounts op organisatie-eigenaarschap, verwerkingsvoorwaarden, eventuele doorgifte en bewaartermijnen. Leg de feitelijk gekozen instellingen vast voordat het formulier publiek gegevens verwerkt.
+2. Verifieer `formulier.jmbetonservice.nl` als Resend-verzenddomein met de records uit het Resend-dashboard. Maak een verzendsleutel met minimale rechten voor dat domein. Maak bij Cloudflare een Managed Turnstile-widget voor `www.jmbetonservice.nl`. Kies voor de productie-Worker een ondersteunde `workers.dev`-URL of een beheerde route.
+3. Voer vanuit `receiver/` `npx wrangler deploy`, `npx wrangler secret put TURNSTILE_SECRET` en `npx wrangler secret put RESEND_API_KEY` uit in de eigenaarssessie. De secrets zijn server-side. De Worker biedt `/offerte`. Zonder configuratie stopt hij met een foutmelding. Log geen formuliervelden, tokens of foto's.
+4. Controleer dat de inbox bijlagen scant voordat de eigenaar ze opent. De Worker controleert het formaat aan de hand van bestandsinhoud, MIME en extensie, en geeft bijlagen vaste bestandsnamen. Deze controle is geen beelddecoder of malwarescanner. De oorspronkelijke foto-inhoud kan metadata bevatten. De Worker schrijft geen aanvragen naar opslag. Bevestig de effectieve bewaartermijn bij de mailverwerker en in de inbox en vul de privacyverklaring daarop aan.
+5. Stel beide publieke Actions-variabelen tegelijk in: `JM_FORM_ENDPOINT` (de HTTPS-URL met pad `/offerte`) en `JM_TURNSTILE_SITE_KEY` (publieke site key). Bouw en controleer de site via de actieve branch-publicatieworkflow. De variant met formulier toont aanvullende verwerkersinformatie. Bij een terugrol beide variabelen verwijderen en opnieuw bouwen.
+
+## Verifiëren
+
+- Lokaal: `node --test receiver/index.test.mjs`, daarna het bestaande smoke-script en de controllerchecks op beide gegenereerde varianten. De ontvangertest simuleert de providers en maakt geen e-mail over.
+- Op productie: verstuur herkenbare fictieve gegevens en een kleine, onschuldige voorbeeldfoto. Controleer dat het kenmerk wordt getoond nadat Resend de opdracht aanneemt, controleer providerstatus en bevestig de e-mail en bijlage in de inbox. Controleer ongewenste mail en valideer een poging zonder foto.
+- Controleer op iOS en Android dat fotoselectie werkt, inclusief de HEIC-variant van het toestel. Test afwijzing van een verkeerd type en van te grote uploads. Simuleer een netwerkfout en herhaal dezelfde aanvraag. Controleer dat de gegevens bewaard blijven en er hoogstens één e-mail aankomt. Gebruik WhatsApp bij uitval.
+- De browser blokkeert gelijktijdig klikken en hergebruikt het aanvraagkenmerk voor een ongewijzigde herhaling in dezelfde sessie. Resend dedupliceert gedurende [24 uur](https://resend.com/docs/dashboard/emails/idempotency-keys). Een herladen formulier of gewijzigde invoer krijgt een nieuw kenmerk. Het browserbericht bevestigt acceptatie voor verzending. De inboxcontrole blijft het bewijs van aflevering.
