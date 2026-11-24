@@ -79,7 +79,7 @@ function imageType(bytes) {
   if (head.startsWith('\x89PNG\r\n\x1a\n')) return 'png';
   if (head.startsWith('RIFF') && head.slice(8, 12) === 'WEBP') return 'webp';
   if (head.slice(4, 8) === 'ftyp') {
-    if (/^(heic|heix)$/.test(head.slice(8, 12))) return 'heic';
+    if (/^(heic|heix|hevc|hevx)$/.test(head.slice(8, 12))) return 'heic';
     if (/^(mif1|msf1)$/.test(head.slice(8, 12))) return 'heif';
   }
 }
@@ -147,8 +147,9 @@ async function handle(request, env) {
   }
 
   const attachments = await readPhotos(data);
-  const text = Object.entries(fields).filter(([key]) => values[key])
-    .map(([key, [label]]) => label + ': ' + values[key]).join('\n');
+  const lines = Object.entries(fields).filter(([key]) => values[key])
+    .map(([key, [label]]) => label + ': ' + values[key]);
+  const text = ['Aanvraagkenmerk: ' + submission, ...lines].join('\n');
   const email = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: {

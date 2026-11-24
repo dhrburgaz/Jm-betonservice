@@ -48,6 +48,7 @@ test('multipart, validatie, spamcontrole, mailcontract en herstel', async t => {
   assert.deepEqual(attempts[0].email.to, ['info@jmbetonservice.nl']);
   assert.equal(attempts[0].email.reply_to, 'test@example.org');
   assert.match(attempts[0].email.text, /SYNTHETISCHE TEST/);
+  assert.ok(attempts[0].email.text.startsWith('Aanvraagkenmerk: ' + ref));
   assert.equal((await send({ origin: 'https://other.example' })).status, 403);
   assert.equal((await send({ fields: { 'bot-field': 'filled' } })).status, 400);
   assert.equal((await send({ fields: { email: '', telefoon: '' } })).status, 400);
