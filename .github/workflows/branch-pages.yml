@@ -1,0 +1,115 @@
+name: Bouw JM Betonservice voor branch-publicatie
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - JM_Betonservice_V83_preview_deel1.part
+      - JM_Betonservice_V83_preview_deel2.part
+      - scripts/patch-preview.py
+      - scripts/finish-preview.py
+      - scripts/expand-about.py
+      - scripts/smoke-preview.py
+      - scripts/migrate-domain.py
+      - scripts/test-form-controller.mjs
+      - .github/workflows/branch-pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: github-pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download bestanden
+        uses: actions/checkout@v4
+
+      - name: Pak de kant-en-klare website uit
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+
+          parts = [
+              Path("JM_Betonservice_V83_preview_deel1.part"),
+              Path("JM_Betonservice_V83_preview_deel2.part"),
+          ]
+          for part in parts:
+              if not part.is_file() or part.stat().st_size == 0:
+                  raise RuntimeError(f"Previewdeel ontbreekt of is leeg: {part}")
+
+          combined = Path("jm-v83-reconstructed.zip")
+          with combined.open("wb") as output:
+              for part in parts:
+                  with part.open("rb") as source:
+                      while chunk := source.read(1024 * 1024):
+                          output.write(chunk)
+
+          destination = Path("_site").resolve()
+          destination.mkdir()
+          with ZipFile(combined) as archive:
+              if archive.testzip() is not None:
+                  raise RuntimeError("Het samengestelde ZIP-bestand bevat een corrupte entry")
+              for member in archive.infolist():
+                  target = (destination / member.filename).resolve()
+                  if target != destination and destination not in target.parents:
+                      raise ValueError(f"Onveilig pad in ZIP: {member.filename}")
+              archive.extractall(destination)
+          for required in ["index.html", ".nojekyll", "404.html"]:
+              if not (destination / required).is_file():
+                  raise RuntimeError(f"Websitebestand ontbreekt: {required}")
+          print("V8.3 is samengesteld, gecontroleerd en uitgepakt.")
+          PY
+
+      - name: Pas contact, WhatsApp en dienstennavigatie aan
+        run: python3 scripts/patch-preview.py _site
+
+      - name: Rond privacy, bedrijfsinformatie en contact af
+        env:
+          JM_FORM_ENDPOINT: ${{ vars.JM_FORM_ENDPOINT }}
+        run: python3 scripts/finish-preview.py _site
+      - name: Breid Over ons uit in bestaande huisstijl
+        run: python3 scripts/expand-about.py _site
+
+      - name: Controleer alle preview-routes en contactonderdelen
+        run: python3 scripts/smoke-preview.py _site
+
+      - name: Test het gedrag van het offerteformulier en de foto-selectie
+        run: node scripts/test-form-controller.mjs _site/contact/index.html
+
+      - name: Migreer bestandspaden naar het eigen domein
+        run: python3 scripts/migrate-domain.py _site
+
+      - name: Controleer routes op het eigen domein
+        run: python3 scripts/smoke-preview.py _site /
+
+      - name: Publiceer gecontroleerde bestanden naar gh-pages
+        run: |
+          printf '%s\n' www.jmbetonservice.nl > _site/CNAME
+          touch _site/.nojekyll
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch origin gh-pages || true
+          git worktree add --detach /tmp/jm-publish HEAD
+          cd /tmp/jm-publish
+          if git rev-parse --verify origin/gh-pages >/dev/null 2>&1; then
+            git checkout -B gh-pages origin/gh-pages
+          else
+            git checkout --orphan gh-pages
+            git rm -rf .
+          fi
+          find . -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
+          cp -a "$GITHUB_WORKSPACE/_site/." .
+          git add -A
+          if ! git diff --cached --quiet; then
+            git commit -m "Publish tested JM website"
+          fi
+          git push origin HEAD:gh-pages
