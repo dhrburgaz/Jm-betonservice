@@ -452,8 +452,8 @@ if endpoint:
     source=source.replace('<button class="btn btn--primary" type="submit" data-submit>Ga verder via WhatsApp</button>',
         f'<div class="cf-turnstile" data-sitekey="{site_key}" data-action="offerte"></div>'
         '<button class="btn btn--primary" type="submit" data-submit>Verstuur mijn aanvraag</button>',1)
-    source=source.replace("Aanvragen verlopen momenteel via WhatsApp",
-        'Verstuur uw aanvraag via het formulier of neem contact op via WhatsApp.',1)
+    source=source.replace("Aanvragen verlopen momenteel via WhatsApp. U kunt ons wel bellen om uw klus te bespreken.",
+        "Verstuur uw aanvraag via het formulier. U kunt ons ook bellen of een WhatsApp-bericht sturen.",1)
     source=re.sub(r'<p class="hint" id="jm-upload-hint">.*?</p>',
         '<p class="hint" id="jm-upload-hint">Kies maximaal 5 foto’s (JPG, PNG, WebP of HEIC/HEIF), '
         'maximaal 8 MB per foto en samen maximaal 10 MB. Deel uitsluitend foto’s die nodig zijn voor uw aanvraag.</p>',
