@@ -6,7 +6,7 @@ from urllib.parse import urljoin, urlsplit, unquote
 import sys
 
 root=Path(sys.argv[1] if len(sys.argv)>1 else "_site").resolve()
-base="/Jm-betonservice/"
+base=sys.argv[2] if len(sys.argv)>2 else "/Jm-betonservice/"
 pages=sorted(root.rglob("*.html"))
 problems=[]
 links=0

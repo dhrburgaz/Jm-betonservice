@@ -10,6 +10,7 @@ on:
       - scripts/finish-preview.py
       - scripts/expand-about.py
       - scripts/smoke-preview.py
+      - scripts/migrate-domain.py
       - scripts/test-form-controller.mjs
       - .github/workflows/preview-pages.yml
   workflow_dispatch:
@@ -85,6 +86,12 @@ jobs:
 
       - name: Test het gedrag van het offerteformulier en de foto-selectie
         run: node scripts/test-form-controller.mjs _site/contact/index.html
+
+      - name: Migreer bestandspaden naar het eigen domein
+        run: python3 scripts/migrate-domain.py _site
+
+      - name: Controleer routes op het eigen domein
+        run: python3 scripts/smoke-preview.py _site /
 
       - name: GitHub Pages configureren
         uses: actions/configure-pages@v5
