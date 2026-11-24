@@ -1,6 +1,6 @@
 # JM Betonservice — oplevering nieuw domein en zakelijke e-mail
 
-Status: **voorbereid, niet geactiveerd**. Deze checklist mag pas worden afgesloten na een echte test op het definitieve domein. Er is op dit moment geen bevestigde domeinnaam, mailboxnaam of provider in dit project.
+Dit document bevat de oorspronkelijke lanceringschecklist. De actuele domein- en mailboxstatus staat in [PROJECT_STATUS.md](../PROJECT_STATUS.md). Gebruik voor de geïmplementeerde offerteontvanger de [activeringshandleiding](OFFERTEONTVANGER.md).
 
 ## 1. Domein & GitHub Pages
 1. Vraag de exacte domeinnaam en het beheerpaneel van de DNS-provider op. Gebruik geen voorbeeldnaam als feit.

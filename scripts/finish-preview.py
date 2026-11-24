@@ -15,10 +15,16 @@ from urllib.parse import urlparse
 root = Path(sys.argv[1] if len(sys.argv) > 1 else "_site")
 base = "/Jm-betonservice/"
 endpoint = os.environ.get("JM_FORM_ENDPOINT", "").strip()
+site_key = os.environ.get("JM_TURNSTILE_SITE_KEY", "").strip()
+if bool(endpoint) != bool(site_key):
+    raise ValueError("Configure JM_FORM_ENDPOINT and JM_TURNSTILE_SITE_KEY together.")
 if endpoint:
     u = urlparse(endpoint)
-    if u.scheme != "https" or not u.netloc or u.username or u.password:
-        raise ValueError("JM_FORM_ENDPOINT must be a public HTTPS submission URL, not a secret.")
+    if (u.scheme != "https" or not u.hostname or u.path != "/offerte"
+            or u.username or u.password or u.query or u.fragment
+            or not re.fullmatch(r"https://[a-zA-Z0-9.-]+/offerte", endpoint)
+            or not re.fullmatch(r"[a-zA-Z0-9_-]{10,100}", site_key)):
+        raise ValueError("Use a public HTTPS /offerte URL and public Turnstile site key.")
 
 privacy_sections = {
     "Wie verantwoordelijk is": (
@@ -144,8 +150,6 @@ controller = r'''<script id="jm-final-contact-script">
   var mainFields=form.querySelector("fieldset");
   function enable(){ if(mainFields) mainFields.disabled=false; }
   enable();
-  document.addEventListener("DOMContentLoaded",enable);
-  window.addEventListener("load",enable);
 
   var button=form.querySelector("[data-submit]");
   var status=document.getElementById("jm-contact-handoff-status");
@@ -193,7 +197,7 @@ controller = r'''<script id="jm-final-contact-script">
       issue="Selecteer uitsluitend afbeeldingen (JPG, PNG, WebP of HEIC).";
     photoValid=!issue;
     if(photoShareButton){
-      var shareable=!!(photoValid && photos.length && canShareFiles(photos));
+      var shareable=!!(!endpoint && photoValid && photos.length && canShareFiles(photos));
       photoShareButton.hidden=!shareable;
     }
     if(photoFeedback){
@@ -296,41 +300,52 @@ controller = r'''<script id="jm-final-contact-script">
     gewenste_periode:"Gewenste planning",oppervlakte:"Oppervlakte"
   };
 
+  var sending=false;
+  var submissionId;
+  form.addEventListener("input",function(){ submissionId=undefined; });
   form.addEventListener("submit",async function(event){
     event.preventDefault();
     event.stopImmediatePropagation();
-    enable();
-    if(!validate())return;
+    if(sending || !validate())return;
     var photos=selectedPhotos();
     var data=new FormData(form);
     var bot=String(data.get("bot-field")||"").trim();
     if(bot){feedback("Controleer uw gegevens en probeer het opnieuw.",true);return;}
     if(endpoint){
-      // FormSubmit attachments require a native multipart POST, not the AJAX route.
-      if(/^https:\/\/formsubmit\.co\//i.test(endpoint)){
-        var nativeEndpoint=endpoint.replace("formsubmit.co/ajax/","formsubmit.co/");
-        feedback("Uw aanvraag en eventuele foto's worden naar de formulierdienst verstuurd.",false);
-        form.action=nativeEndpoint;
-        form.method="POST";
-        form.enctype="multipart/form-data";
-        // Native submission includes the file input without serializing it in a URL.
-        HTMLFormElement.prototype.submit.call(form);
+      if(!data.get("cf-turnstile-response")){
+        feedback("Rond eerst de beveiligingscontrole af, of neem contact op via WhatsApp.",true);
         return;
       }
+      submissionId=submissionId || crypto.randomUUID();
+      var currentId=submissionId;
+      data.set("submission_id",currentId);
+      sending=true;
       if(button)button.disabled=true;
+      if(mainFields)mainFields.disabled=true;
       feedback("Uw aanvraag en eventuele foto's worden verzonden…",false);
       try{
-        var response=await fetch(endpoint,{method:"POST",body:data,headers:{"Accept":"application/json"}});
-        if(!response.ok)throw new Error("Formulierdienst reageert met status "+response.status);
+        var response=await fetch(endpoint,{method:"POST",body:data,headers:{"Accept":"application/json"},
+          signal:AbortSignal.timeout(25000),redirect:"error",credentials:"omit"});
         var result=await response.json().catch(function(){return null;});
-        if(!result || !(result.success===true||result.success==="true"||result.accepted===true||result.ref))
-          throw new Error("Ontvanger heeft de aanvraag niet bevestigd.");
-        feedback("Uw aanvraag is door de formulierdienst geaccepteerd. Wij nemen contact met u op.",false);
-        form.reset();
-        refreshPhotos();
+        if(!response.ok){
+          feedback(result && typeof result.message==="string" ? result.message :
+            "Verzenden is niet gelukt. Probeer opnieuw of bel ons.",true);
+        }else if(response.status===202 && result && result.accepted===true && result.reference===currentId){
+          feedback("Uw aanvraag is aangenomen voor verzending. Uw kenmerk is "+currentId+".",false);
+          form.reset();
+          submissionId=undefined;
+          refreshPhotos();
+        }else{
+          throw new Error("Ontvangst van de aanvraag is niet bevestigd.");
+        }
       }catch(err){
-        feedback("Verzenden is niet gelukt. Uw gegevens staan nog in het formulier. Probeer opnieuw of bel ons.",true);
-      }finally{if(button)button.disabled=false;}
+        feedback("Verzending kon niet worden bevestigd. Uw gegevens staan nog in het formulier. Probeer opnieuw of bel ons.",true);
+      }finally{
+        sending=false;
+        if(mainFields)mainFields.disabled=false;
+        if(button)button.disabled=false;
+        if(window.turnstile)window.turnstile.reset();
+      }
       return;
     }
     var lines=["Offerteaanvraag via website JM Betonservice",""];
@@ -389,6 +404,12 @@ source,count=re.subn(r'<div class="draft-banner"><div class="container"><p>.*?</
 if count!=1: raise RuntimeError("Privacy preview banner structure changed.")
 for title,body in privacy_sections.items():
     pattern=r'(<div class="doc-section"><h2>'+re.escape(title)+r'</h2>)<div class="todo-note">.*?</div>(</div>)'
+    if endpoint and title == "Met wie we gegevens delen":
+        body=body.replace(
+            "Zodra een aparte formulier- en e-maildienst wordt aangesloten, passen wij deze verklaring aan op die daadwerkelijk gebruikte dienst.",
+            "Bij gebruik van het formulier verwerkt Cloudflare technische gegevens voor de beveiligingscontrole "
+            "en verwerkt de Cloudflare Worker uw aanvraag, inclusief eventuele foto’s. Resend bezorgt de aanvraag "
+            "als e-mail in onze zakelijke mailbox. De Worker bewaart zelf geen kopie van uw aanvraag.")
     source,count=re.subn(pattern,lambda m:m.group(1)+'<div class="doc-text">'+body+'</div>'+m.group(2),source,count=1,flags=re.S)
     if count!=1:raise RuntimeError("Privacy section missing: "+title)
 if "Nog in te vullen" in source:raise RuntimeError("Privacy still contains todo.")
@@ -427,6 +448,20 @@ source=source.replace('<button class="btn btn--primary" type="submit" data-submi
 if 'data-submit>Ga verder via WhatsApp' not in source:
     raise RuntimeError("Submit button not found")
 source=source.replace('</form>','<p class="jm-contact-status" id="jm-contact-handoff-status" role="status" aria-live="polite" tabindex="-1" hidden></p></form>',1)
+if endpoint:
+    source=source.replace('<button class="btn btn--primary" type="submit" data-submit>Ga verder via WhatsApp</button>',
+        f'<div class="cf-turnstile" data-sitekey="{site_key}" data-action="offerte"></div>'
+        '<button class="btn btn--primary" type="submit" data-submit>Verstuur mijn aanvraag</button>',1)
+    source=source.replace("Aanvragen verlopen momenteel via WhatsApp. U kunt ons wel bellen om uw klus te bespreken.",
+        "Verstuur uw aanvraag via het formulier. U kunt ons ook bellen of een WhatsApp-bericht sturen.",1)
+    source=re.sub(r'<p class="hint" id="jm-upload-hint">.*?</p>',
+        '<p class="hint" id="jm-upload-hint">Kies maximaal 5 foto’s (JPG, PNG, WebP of HEIC/HEIF), '
+        'maximaal 8 MB per foto en samen maximaal 10 MB. Deel uitsluitend foto’s die nodig zijn voor uw aanvraag.</p>',
+        source,count=1)
+    source=source.replace('Zonder ingeschakelde formulierontvanger opent de aanvraag in WhatsApp. '
+        'Geselecteerde foto’s worden daarbij niet automatisch meegestuurd; u voegt deze zelf toe. ', '')
+    source=source.replace('</body>',
+        '<script src="https://challenges.cloudflare.com/turnstile/v0/api.js" defer></script></body>',1)
 source=source.replace('</body>',controller.replace('__JM_FORM_ENDPOINT__',json.dumps(endpoint,ensure_ascii=False))+'</body>',1)
 contact_file.write_text(source,encoding="utf-8")
 

@@ -17,16 +17,25 @@ icon = ("M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.
 css = """<style id="jm-contact-fixes">
 .site-footer .jm-footer-contact{color:inherit;text-decoration:none;display:inline-block}
 .site-footer .jm-footer-contact:hover{text-decoration:underline;text-underline-offset:4px}
-.site-footer .jm-footer-contact:focus-visible,.jm-whatsapp:focus-visible{outline:3px solid #1754c8;outline-offset:4px}
+.site-footer .jm-footer-contact:focus-visible,.jm-whatsapp:focus-visible,.jm-whatsapp-inline:focus-visible{outline:3px solid #1754c8;outline-offset:4px}
 .jm-whatsapp{position:fixed;z-index:55;right:calc(20px + env(safe-area-inset-right));bottom:calc(20px + env(safe-area-inset-bottom));width:58px;height:58px;display:flex;align-items:center;justify-content:center;border-radius:50%;background:#25d366;color:#fff;border:2px solid #fff;box-shadow:0 6px 24px rgba(0,0,0,.22);text-decoration:none;transition:transform .15s ease,box-shadow .15s ease}
 .jm-whatsapp svg{width:32px;height:32px;fill:currentColor;display:block}
 .jm-whatsapp:hover{transform:translateY(-2px);box-shadow:0 8px 28px rgba(0,0,0,.3)}
-@media(max-width:1199px){body:has(.mobile-bar:not([hidden])) .jm-whatsapp{bottom:calc(96px + env(safe-area-inset-bottom))}body:has(.primary-nav[data-open="true"]) .jm-whatsapp{visibility:hidden;pointer-events:none}}
+.jm-whatsapp-inline{display:none}
+@media(max-width:767px){
+  .jm-whatsapp{display:none}
+  .jm-whatsapp-inline{display:inline-flex;align-items:center;min-height:44px;text-decoration:underline;text-underline-offset:3px}
+  .form-notice .jm-whatsapp-inline{margin-inline-start:12px}
+}
+@media(min-width:768px) and (max-width:1199px){body:has(.mobile-bar:not([hidden])) .jm-whatsapp{bottom:calc(96px + env(safe-area-inset-bottom))}body:has(.primary-nav[data-open="true"]) .jm-whatsapp{visibility:hidden;pointer-events:none}}
 @media(prefers-reduced-motion:reduce){.jm-whatsapp{transition:none}}
 </style>"""
 button = (f'<a class="jm-whatsapp" href="{wa_url}" target="_blank" rel="noopener noreferrer" '
           'aria-label="Stuur JM Betonservice een WhatsApp-bericht" title="Contact via WhatsApp">'
           f'<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false"><path d="{icon}"/></svg></a>')
+
+inline_link = (f'<a class="jm-whatsapp-inline" href="{wa_url}" target="_blank" '
+               'rel="noopener noreferrer">Contact via WhatsApp</a>')
 
 pages = sorted(root.rglob("*.html"))
 header_js = root / "_astro/Header.astro_astro_type_script_index_0_lang.BpPdg-ut.js"
@@ -49,7 +58,12 @@ for page in pages:
         raise RuntimeError(f"Onverwachte footer- of HTML-structuur: {page}")
     if "jm-contact-fixes" in html or 'class="jm-whatsapp"' in html:
         raise RuntimeError(f"Dubbele wijziging voorkomen: {page}")
-    html = html.replace(old_footer, new_footer, 1)
+    html = html.replace(old_footer, new_footer + inline_link, 1)
+    if page.relative_to(root).as_posix() == "contact/index.html":
+        form_start = '</div><form class="lead-form"'
+        if html.count(form_start) != 1:
+            raise RuntimeError("De start van het contactformulier is gewijzigd.")
+        html = html.replace(form_start, inline_link + form_start, 1)
     html = html.replace("</head>", css + "</head>", 1)
     html = html.replace("</body>", button + "</body>", 1)
     page.write_text(html, encoding="utf-8")
