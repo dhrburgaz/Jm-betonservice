@@ -11,6 +11,7 @@ on:
       - scripts/expand-about.py
       - scripts/smoke-preview.py
       - scripts/migrate-domain.py
+      - scripts/editorial-seo.py
       - scripts/test-form-controller.mjs
       - .github/workflows/branch-pages.yml
   workflow_dispatch:
@@ -87,6 +88,9 @@ jobs:
 
       - name: Migreer bestandspaden naar het eigen domein
         run: python3 scripts/migrate-domain.py _site
+
+      - name: Verbeter zakelijke teksten en lokale SEO
+        run: python3 scripts/editorial-seo.py _site
 
       - name: Controleer routes op het eigen domein
         run: python3 scripts/smoke-preview.py _site /
