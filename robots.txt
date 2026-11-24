@@ -1,0 +1,3 @@
+# Preview: niet indexeren
+User-agent: *
+Disallow: /

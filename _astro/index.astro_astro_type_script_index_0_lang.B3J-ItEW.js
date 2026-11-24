@@ -1,0 +1,1 @@
+var e=[`binnenvloeren`,`bedrijfsvloeren`,`balkons`,`voorbereiding`],t=new URLSearchParams(location.search).get(`categorie`);t&&e.includes(t)&&document.querySelector(`[data-filter="${t}"]`)?.click();
