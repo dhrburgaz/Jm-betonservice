@@ -17,6 +17,7 @@ on:
 
 permissions:
   contents: read
+  actions: read
   pages: write
   id-token: write
 
@@ -101,6 +102,19 @@ jobs:
         with:
           path: _site
           name: github-pages-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Wacht totdat het pakket zichtbaar is via de Actions API
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_NAME: github-pages-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          for attempt in $(seq 1 24); do
+            count=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID/artifacts" --jq '[.artifacts[] | select(.name == env.ARTIFACT_NAME and .expired == false)] | length')
+            if [ "$count" = 1 ]; then exit 0; fi
+            sleep 5
+          done
+          echo 'Expected Pages artifact not visible via API' >&2
+          exit 1
 
       - name: Website publiceren
         id: deployment
