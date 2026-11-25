@@ -30,3 +30,85 @@ assert len(urls)>=20
 assert "info@jmbetonservice.nl" in (root/"contact/index.html").read_text()
 assert "afrondingspatch" not in (root/"privacy/index.html").read_text()
 print(f"Editorial and SEO update: {len(urls)} indexable routes")
+
+
+# Confirmed business identity and local SEO (2026-11-25).
+# The registered address is not advertised as a walk-in location.
+business = {
+    "@context": "https://schema.org",
+    "@type": "HomeAndConstructionBusiness",
+    "@id": origin + "#business",
+    "name": "JM Betonservice",
+    "url": origin,
+    "telephone": "+31648381164",
+    "email": "info@jmbetonservice.nl",
+    "vatID": "NL002210676B47",
+    "identifier": {"@type": "PropertyValue", "propertyID": "KvK", "value": "67385524"},
+    "address": {
+        "@type": "PostalAddress",
+        "streetAddress": "Admiraalsplein 209",
+        "postalCode": "3317 BD",
+        "addressLocality": "Dordrecht",
+        "addressRegion": "Zuid-Holland",
+        "addressCountry": "NL"
+    },
+    "areaServed": ["Dordrecht", "Zuid-Holland", "Zeeland", "Regio Amsterdam"],
+    "description": "Gietvloeren, balkonrenovatie en betonreparatie vanuit Dordrecht."
+}
+business_lines = (
+    '<span style="display:block">Btw: NL002210676B47</span>'
+    '<span style="display:block">Admiraalsplein 209</span>'
+    '<span style="display:block">3317 BD Dordrecht</span>'
+)
+footer_anchor = 'JM Betonservice · KvK 67385524'
+contact_anchor = '<p class="contact-meta">Actief in Zuid-Holland, Zeeland en de regio Amsterdam.</p>'
+contact_details = (
+    '<p class="contact-meta">Gevestigd in Dordrecht. Actief in Zuid-Holland, Zeeland en de regio Amsterdam.</p>'
+    '<p class="contact-meta"><strong>Bedrijfsgegevens</strong><br>JM Betonservice<br>'
+    'Admiraalsplein 209<br>3317 BD Dordrecht<br>KvK 67385524<br>Btw: NL002210676B47<br>'
+    '<a href="mailto:info@jmbetonservice.nl" style="overflow-wrap:anywhere">info@jmbetonservice.nl</a></p>'
+)
+privacy_anchor = 'KvK-nummer: <strong>67385524</strong>.'
+privacy_details = (
+    privacy_anchor + ' Btw-nummer: NL002210676B47. '
+    'Adres: Admiraalsplein 209, 3317 BD Dordrecht, Nederland. '
+    'E-mail: <a href="mailto:info@jmbetonservice.nl">info@jmbetonservice.nl</a>.'
+)
+local_meta = {
+    "index.html": ("Gietvloeren & betonreparatie Dordrecht | JM Betonservice",
+        "JM Betonservice in Dordrecht: gietvloeren, balkonrenovatie en betonreparatie in Zuid-Holland, Zeeland en regio Amsterdam. Vraag uw offerte aan."),
+    "contact/index.html": ("Contact & offerte | JM Betonservice Dordrecht",
+        "Contact met JM Betonservice in Dordrecht voor gietvloeren, balkonrenovatie en betonreparatie. Bel 06 48 38 11 64 of mail info@jmbetonservice.nl."),
+    "over-ons/index.html": ("Over JM Betonservice Dordrecht | 16 jaar praktijkervaring",
+        "JM Betonservice uit Dordrecht heeft 16 jaar praktijkervaring in gietvloeren, coatings en betonwerk voor woningen en bedrijven.")
+}
+count = 0
+for page in sorted(root.rglob("*.html")):
+    rel = page.relative_to(root).as_posix()
+    source = page.read_text(encoding="utf-8")
+    assert source.count(footer_anchor) == 1, f"Business footer missing or duplicated: {rel}"
+    source = source.replace(footer_anchor, footer_anchor + business_lines, 1)
+    if rel == "contact/index.html":
+        assert source.count(contact_anchor) == 1, "Contact address insertion point changed"
+        source = source.replace(contact_anchor, contact_details, 1)
+    if rel == "privacy/index.html":
+        assert source.count(privacy_anchor) == 1, "Privacy identity insertion point changed"
+        source = source.replace(privacy_anchor, privacy_details, 1)
+    if rel in local_meta:
+        title, desc = map(html.escape, local_meta[rel])
+        source, n = re.subn(r"<title>.*?</title>", lambda m: f"<title>{title}</title>", source, count=1)
+        assert n == 1, rel
+        for key, value in [("description", desc), ("og:title", title), ("og:description", desc)]:
+            attr = "property" if key.startswith("og:") else "name"
+            source, n = re.subn(fr'<meta {attr}="{key}" content="[^"]*">', lambda m: f'<meta {attr}="{key}" content="{value}">', source, count=1)
+            assert n == 1, (rel, key)
+    if rel == "index.html":
+        schema = json.dumps(business, ensure_ascii=False)
+        assert json.loads(schema)["address"]["postalCode"] == "3317 BD"
+        assert 'id="jm-business-schema"' not in source
+        source = source.replace("</head>", '<script type="application/ld+json" id="jm-business-schema">' + schema + "</script></head>", 1)
+    assert "NL002210676B47" in source and "Admiraalsplein 209" in source, rel
+    page.write_text(source, encoding="utf-8")
+    count += 1
+assert count >= 20
+print(f"Business identity verified on {count} HTML pages; local metadata and business JSON-LD generated.")
